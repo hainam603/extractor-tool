@@ -1,0 +1,4 @@
+node_modules/
+extractor-tool.exe
+exports/
+~$*.docx

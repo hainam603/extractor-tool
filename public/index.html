@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trích xuất Quá trình công tác sang Excel</title>
+    <!-- Font chữ Inter sang trọng -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PDF.js & Tesseract.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --primary: #1e3a8a;
+            --primary-hover: #172554;
+            --secondary: #3b82f6;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --radius-lg: 16px;
+            --radius-md: 10px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 98%;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .upload-card .btn {
+            padding: 6px 16px;
+            font-size: 0.85rem;
+        }
+
+        header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 6px;
+            letter-spacing: -0.025em;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Thẻ Upload (Drag & Drop) */
+        .upload-card {
+            background-color: var(--card-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .upload-card:hover, .upload-card.dragover {
+            border-color: var(--secondary);
+            background-color: #f1f5f9;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .upload-icon {
+            font-size: 30px;
+            color: var(--secondary);
+            margin-bottom: 6px;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .upload-card h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .upload-card p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 22px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(30, 58, 138, 0.2);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            box-shadow: 0 10px 15px -3px rgba(30, 58, 138, 0.3);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-secondary {
+            background-color: #e2e8f0;
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: #cbd5e1;
+        }
+
+        /* Alert cảnh báo/thông báo */
+        .alert {
+            padding: 16px 20px;
+            border-radius: var(--radius-md);
+            margin-bottom: 24px;
+            font-size: 0.95rem;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .alert-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .alert-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+
+        /* Phần Bảng Dữ liệu */
+        .workspace-card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            padding: 30px;
+            display: none;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .action-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Responsive Table */
+        .table-container {
+            overflow-x: auto;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            min-width: 800px;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #fafbfd;
+        }
+
+        /* Input sửa trực tiếp trong bảng */
+        .table-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            line-height: 1.45;
+            transition: all 0.2s ease;
+            color: var(--text-main);
+            background-color: #ffffff;
+            resize: none !important; /* Ẩn icon kéo giãn triệt để */
+            overflow-y: hidden !important; /* Ẩn scrollbar dọc triệt để */
+            box-sizing: border-box !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+        }
+
+        .table-input:hover {
+            border-color: #cbd5e1;
+            background-color: #f8fafc;
+        }
+
+        .table-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background-color: #ffffff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+        }
+
+        /* Các ô căn giữa */
+        .text-center {
+            text-align: center;
+        }
+
+        /* Cột số tháng và nút xóa */
+        .col-stt { width: 50px; color: #64748b; font-weight: 500; }
+        .col-project { width: 28%; }
+        .col-content { width: 28%; }
+        .col-position { width: 14%; min-width: 140px; }
+        .col-time-start { width: 10%; min-width: 110px; text-align: center; }
+        .col-time-end { width: 10%; min-width: 110px; text-align: center; }
+        .col-months { width: 8%; min-width: 90px; font-weight: 700; color: #1d4ed8; text-align: center; font-size: 1rem; }
+        .col-action { width: 45px; text-align: center; }
+
+        /* Giảm padding ngang cho input thời gian để tăng diện tích hiển thị chữ */
+        .col-time-start input, .col-time-end input {
+            padding: 8px 4px !important;
+        }
+
+        /* Nút xóa dòng hiện đại */
+        .delete-btn {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            line-height: 1;
+        }
+
+        .delete-btn:hover {
+            background-color: #fee2e2;
+            transform: scale(1.1);
+        }
+
+        /* Hàng Tổng cộng */
+        .total-row {
+            background-color: #f8fafc;
+            font-weight: 700;
+        }
+
+        .total-row td {
+            border-top: 2px solid var(--text-main);
+            border-bottom: 2px double var(--text-main);
+        }
+
+        /* Trạng thái Loading */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-weight: 500;
+            color: var(--primary);
+        }
+        
+        .delete-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: var(--transition);
+        }
+        
+        .delete-btn:hover {
+            background-color: #fee2e2;
+        }
+
+        .api-key-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .api-key-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+        
+        .api-key-input {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+        
+        .api-key-input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Trích xuất Quá trình công tác sang Excel</h1>
+            <p>Tải lên bản khai quá trình công tác (DOCX/PDF) để tự động tính thời gian và tạo file Excel chuẩn.</p>
+        </header>
+
+        <!-- Alert -->
+        <div id="alertBox" class="alert">
+            <span id="alertMessage"></span>
+        </div>
+
+        <!-- Vùng Upload -->
+        <div id="dropZone" class="upload-card">
+            <input type="file" id="fileInput" class="file-input" accept=".docx,.pdf" multiple>
+            <div class="upload-icon">📄</div>
+            <h3>Kéo & thả các file vào đây</h3>
+            <p>Hoặc bấm vào để chọn các file từ máy tính (Hỗ trợ định dạng .docx, .pdf)</p>
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Chọn các file</button>
+        </div>
+
+        <!-- Bảng chỉnh sửa thông tin -->
+        <div id="workspaceCard" class="workspace-card">
+            <div class="card-header" style="flex-wrap: wrap; gap: 15px;">
+                <div class="card-title" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <span>Kết quả phân tích bảng dữ liệu</span>
+                    <label class="gop-hoso-label" style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="gopHoSoCheckbox" style="width: 16px; height: 16px; cursor: pointer;">
+                        <strong>Gộp hồ sơ</strong> (Tính trùng lặp liên hồ sơ)
+                    </label>
+                </div>
+                <div class="action-group">
+                    <button id="exportBtn" class="btn btn-success">📥 Xuất file Excel</button>
+                </div>
+            </div>
+
+            <!-- Vùng hiển thị thông tin tổng hợp thời gian lên trên đầu -->
+            <div id="summaryCard" class="summary-card" style="display: none; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    📊 Thống kê tổng hợp thời gian công tác
+                </h4>
+                <div id="summaryList" style="display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: #475569;">
+                    <!-- Danh sách từng hồ sơ -->
+                </div>
+                <div id="summaryTotal" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-weight: bold; color: #1e3a8a; font-size: 1.05rem;">
+                    <!-- Tổng cộng -->
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="text-center col-stt">STT</th>
+                            <th class="col-project">Tên đề án, dự án...</th>
+                            <th class="col-content">Nội dung công việc đã tham gia</th>
+                            <th class="col-position">Vị trí</th>
+                            <th class="col-time-start">Bắt đầu</th>
+                            <th class="col-time-end">Kết thúc</th>
+                            <th class="text-center col-months">Số tháng</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Các dòng dữ liệu động được thêm tại đây -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spinner Loading -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Đang xử lý dữ liệu...</div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
