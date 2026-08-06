@@ -165,12 +165,17 @@ function extractDataFromDocx(fileBuffer) {
         if (!rows) continue;
         const rowsArr = Array.isArray(rows) ? rows : [rows];
         
+        // Mảng theo dõi giá trị merge dọc của từng cột
+        const lastMergedValues = [];
+        let currentAutoStt = 1;
+        
         for (const row of rowsArr) {
             const cells = row['w:tc'];
             if (!cells) continue;
             const cellsArr = Array.isArray(cells) ? cells : [cells];
             
-            const rowText = cellsArr.map(cell => {
+            // Parse text của từng cell, có xử lý vMerge
+            const rowText = cellsArr.map((cell, cIdx) => {
                 const tList = [];
                 function findTexts(obj) {
                     if (!obj || typeof obj !== 'object') return;
@@ -180,8 +185,6 @@ function extractDataFromDocx(fileBuffer) {
                             tList.push(val.toString());
                         } else if (val && val['#text']) {
                             tList.push(val['#text'].toString());
-                        } else if (typeof val === 'object') {
-                            tList.push('');
                         }
                     }
                     for (const key in obj) {
@@ -189,25 +192,57 @@ function extractDataFromDocx(fileBuffer) {
                     }
                 }
                 findTexts(cell);
-                return tList.join('').trim();
+                let text = tList.join('').trim();
+                
+                // Xử lý vMerge (gộp ô dọc)
+                const tcPr = cell['w:tcPr'];
+                if (tcPr && tcPr['w:vMerge'] !== undefined) {
+                    const vMerge = tcPr['w:vMerge'];
+                    // Nếu là restart, ghi nhận giá trị merge mới
+                    if (vMerge && vMerge['@_w:val'] === 'restart') {
+                        lastMergedValues[cIdx] = text;
+                    } else {
+                        // Nếu là continue hoặc thẻ rỗng, thừa hưởng giá trị cũ
+                        text = lastMergedValues[cIdx] || '';
+                    }
+                } else {
+                    // Không có vMerge, xóa trạng thái merge của cột này
+                    lastMergedValues[cIdx] = null;
+                }
+                
+                return text;
             });
             
-            if (rowText.length >= 2) {
-                const stt = rowText[0].trim();
+            if (rowText.length >= 5) {
+                const sttRaw = rowText[0].trim();
                 const project = rowText[1] ? rowText[1].trim() : '';
                 const content = rowText[2] ? rowText[2].trim() : '';
                 const position = rowText[3] ? rowText[3].trim() : '';
                 const time = rowText[4] ? rowText[4].trim() : '';
                 
-                const cleanStt = stt.trim().replace(/\.$/, ''); // Bỏ dấu chấm ở cuối nếu có
-                const isNumber = /^\d+$/.test(stt);
+                // Bỏ qua các dòng tiêu đề
+                if (sttRaw.toLowerCase() === 'stt' || project.toLowerCase() === 'tên đề án, dự án, thiết kế kỹ thuật - dự toán nhiệm vụ đo đạcvà bản đồ' || project.toLowerCase().includes('tên đề án')) {
+                    continue;
+                }
+                
+                const cleanStt = sttRaw.replace(/\.$/, ''); // Bỏ dấu chấm ở cuối nếu có
+                const isNumber = /^\d+$/.test(cleanStt);
                 const isRoman = /^[IVXLCDM]+$/i.test(cleanStt) && cleanStt.length > 0;
                 const hasTime = /[\d]{1,2}[\/-][\d]{4}/.test(time);
                 
-                if (isNumber && hasTime && rowText.length >= 5) {
+                // Dòng hợp lệ: có thời gian và (có project hoặc content)
+                if (hasTime && (project || content)) {
+                    let sttVal = currentAutoStt;
+                    if (isNumber) {
+                        sttVal = parseInt(cleanStt, 10);
+                        currentAutoStt = sttVal + 1;
+                    } else {
+                        currentAutoStt++;
+                    }
+                    
                     const months = calculateMonths(time);
                     parsedData.push({
-                        stt: parseInt(stt, 10),
+                        stt: sttVal,
                         project,
                         content,
                         position,
