@@ -42,10 +42,10 @@ function calculateMonths(timeStr) {
     if (!timeStr) return 0;
     
     const parts = splitDateRange(timeStr);
-    if (parts.length < 2) return 0;
+    if (parts.length === 0) return 0;
     
     const startStr = parts[0];
-    const endStr = parts[1];
+    const endStr = parts.length >= 2 ? parts[1] : startStr;
     
     function parseDate(str) {
         // Hỗ trợ cả dấu gạch chéo / và gạch ngang -
@@ -81,10 +81,10 @@ function getMonthsList(timeStr) {
     if (!timeStr) return [];
     
     const parts = splitDateRange(timeStr);
-    if (parts.length < 2) return [];
+    if (parts.length === 0) return [];
     
     const startStr = parts[0];
-    const endStr = parts[1];
+    const endStr = parts.length >= 2 ? parts[1] : startStr;
     
     function parseDate(str) {
         const regex = /(?:(\d{1,2})[\/-])?(\d{1,2})[\/-](\d{4})/;
