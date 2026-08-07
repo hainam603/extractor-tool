@@ -463,10 +463,10 @@
 
         <!-- Vùng Upload -->
         <div id="dropZone" class="upload-card">
-            <input type="file" id="fileInput" class="file-input" accept=".docx,.pdf" multiple>
+            <input type="file" id="fileInput" class="file-input" accept=".docx,.doc,.pdf" multiple>
             <div class="upload-icon">📄</div>
             <h3>Kéo & thả các file vào đây</h3>
-            <p>Hoặc bấm vào để chọn các file từ máy tính (Hỗ trợ định dạng .docx, .pdf)</p>
+            <p>Hoặc bấm vào để chọn các file từ máy tính (Hỗ trợ định dạng .docx, .doc, .pdf)</p>
             <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Chọn các file</button>
         </div>
 
@@ -508,7 +508,8 @@
                             <th class="col-position">Vị trí</th>
                             <th class="col-time-start">Bắt đầu</th>
                             <th class="col-time-end">Kết thúc</th>
-                            <th class="text-center col-months">Số tháng</th>
+                            <th class="text-center col-original-months" style="width: 8%; min-width: 80px;">Số tháng</th>
+                            <th class="text-center col-months" style="width: 8%; min-width: 100px;">Thực tính</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">

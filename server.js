@@ -213,6 +213,29 @@ function extractDataFromDocx(fileBuffer) {
                 return text;
             });
             
+            if (rowText.length >= 2) {
+                const sttRaw = rowText[0].trim();
+                const cleanStt = sttRaw.replace(/\.$/, ''); // Bỏ dấu chấm ở cuối nếu có
+                const isRoman = /^[IVXLCDM]+$/i.test(cleanStt) && cleanStt.length > 0;
+                
+                // Kiểm tra xem dòng này có chứa thời gian hay không
+                const hasTime = rowText.some(cell => cell && /[\d]{1,2}[\/-][\d]{4}/.test(cell));
+                
+                if (isRoman && !hasTime) {
+                    parsedData.push({
+                        stt: cleanStt,
+                        project: rowText[1] ? rowText[1].trim() : '',
+                        content: '',
+                        position: '',
+                        time: '',
+                        months: 0,
+                        isHeader: true,
+                        isSubHeader: true
+                    });
+                    continue;
+                }
+            }
+
             if (rowText.length >= 5) {
                 const sttRaw = rowText[0].trim();
                 const project = rowText[1] ? rowText[1].trim() : '';
@@ -221,13 +244,12 @@ function extractDataFromDocx(fileBuffer) {
                 const time = rowText[4] ? rowText[4].trim() : '';
                 
                 // Bỏ qua các dòng tiêu đề
-                if (sttRaw.toLowerCase() === 'stt' || project.toLowerCase() === 'tên đề án, dự án, thiết kế kỹ thuật - dự toán nhiệm vụ đo đạcvà bản đồ' || project.toLowerCase().includes('tên đề án')) {
+                if (sttRaw.toLowerCase() === 'stt' || project.toLowerCase() === 'tên đề án, dự án, thiết kế kỹ thuật - dự toán nhiệm vụ đo đạcvà bản đồ' || project.toLowerCase().includes('tên đề án') || project.toLowerCase().includes('tên đề án, dự án')) {
                     continue;
                 }
                 
                 const cleanStt = sttRaw.replace(/\.$/, ''); // Bỏ dấu chấm ở cuối nếu có
                 const isNumber = /^\d+$/.test(cleanStt);
-                const isRoman = /^[IVXLCDM]+$/i.test(cleanStt) && cleanStt.length > 0;
                 const hasTime = /[\d]{1,2}[\/-][\d]{4}/.test(time);
                 
                 // Dòng hợp lệ: có thời gian và (có project hoặc content)
@@ -248,17 +270,6 @@ function extractDataFromDocx(fileBuffer) {
                         position,
                         time,
                         months
-                    });
-                } else if (isRoman && project) {
-                    parsedData.push({
-                        stt: cleanStt,
-                        project,
-                        content: '',
-                        position: '',
-                        time: '',
-                        months: 0,
-                        isHeader: true,
-                        isSubHeader: true
                     });
                 }
             }
@@ -317,6 +328,54 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             const personalInfo = extractPersonalInfo(req.file.buffer);
             res.json({ data, personalInfo });
             return;
+        } else if (ext === '.doc') {
+            // Tạo tên file tạm ngẫu nhiên trong thư mục exports
+            const tempId = Date.now() + '_' + Math.floor(Math.random() * 1000);
+            if (!fs.existsSync(exportsDir)) {
+                fs.mkdirSync(exportsDir);
+            }
+            const tempDocPath = path.join(exportsDir, `temp_${tempId}.doc`);
+            const tempDocxPath = path.join(exportsDir, `temp_${tempId}.docx`);
+            
+            // Ghi buffer vào file tạm .doc
+            fs.writeFileSync(tempDocPath, req.file.buffer);
+            
+            const docFileAbs = path.resolve(tempDocPath);
+            const docxFileAbs = path.resolve(tempDocxPath);
+            
+            // Chạy lệnh PowerShell convert sang .docx dùng MS Word COM Object
+            const psCommand = `powershell -Command "$word = New-Object -ComObject Word.Application; $word.Visible = $false; $doc = $word.Documents.Open('${docFileAbs}'); $doc.SaveAs([ref] '${docxFileAbs}', [ref] 16); $doc.Close(); $word.Quit();"`;
+            
+            try {
+                await new Promise((resolve, reject) => {
+                    exec(psCommand, (err, stdout, stderr) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
+                
+                if (!fs.existsSync(tempDocxPath)) {
+                    throw new Error('Chuyển đổi file .doc sang .docx không thành công.');
+                }
+                
+                const docxBuffer = fs.readFileSync(tempDocxPath);
+                data = extractDataFromDocx(docxBuffer);
+                const personalInfo = extractPersonalInfo(docxBuffer);
+                
+                res.json({ data, personalInfo });
+            } finally {
+                // Đảm bảo luôn dọn dẹp các file tạm
+                try {
+                    if (fs.existsSync(tempDocPath)) fs.unlinkSync(tempDocPath);
+                    if (fs.existsSync(tempDocxPath)) fs.unlinkSync(tempDocxPath);
+                } catch (unlinkErr) {
+                    console.error('Lỗi khi xóa file tạm:', unlinkErr);
+                }
+            }
+            return;
         } else if (ext === '.pdf') {
             // Thử trích xuất text từ file PDF
             const pdfData = await pdfParse(req.file.buffer);
@@ -335,7 +394,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             });
             return;
         } else {
-            return res.status(400).json({ error: 'Định dạng file không hỗ trợ. Vui lòng chọn file .docx hoặc .pdf.' });
+            return res.status(400).json({ error: 'Định dạng file không hỗ trợ. Vui lòng chọn file .docx, .doc hoặc .pdf.' });
         }
     } catch (err) {
         console.error(err);
@@ -369,7 +428,8 @@ app.post('/api/export', async (req, res) => {
             { header: 'Nội dung công việc đã tham gia', key: 'content', width: 45 },
             { header: 'Vị trí đảm nhiệm', key: 'position', width: 20 },
             { header: 'Thời gian tham gia', key: 'time', width: 20 },
-            { header: 'Thời gian công tác (tháng)', key: 'months', width: 25 }
+            { header: 'Số tháng', key: 'originalMonths', width: 15 },
+            { header: 'Số tháng thực tính', key: 'actualMonths', width: 20 }
         ];
         
         // Định dạng tiêu đề cột (Header styling)
@@ -392,7 +452,8 @@ app.post('/api/export', async (req, res) => {
                 content: isHeader ? '' : item.content,
                 position: isHeader ? '' : item.position,
                 time: isHeader ? '' : item.time,
-                months: isHeader ? (item.months !== undefined ? item.months + ' tháng' : '0 tháng') : (parseInt(item.months, 10) || 0)
+                originalMonths: isHeader ? '' : (parseInt(item.originalMonths, 10) || 0),
+                actualMonths: isHeader ? (item.months !== undefined ? item.months + ' tháng' : '0 tháng') : (parseInt(item.months, 10) || 0)
             });
             
             const rowIndex = row.number;
@@ -405,7 +466,7 @@ app.post('/api/export', async (req, res) => {
                 row.alignment = { vertical: 'middle', wrapText: true };
                 row.getCell('stt').alignment = { vertical: 'middle', horizontal: 'center' };
                 row.getCell('project').alignment = { vertical: 'middle', horizontal: 'left' };
-                row.getCell('months').alignment = { vertical: 'middle', horizontal: 'center' };
+                row.getCell('actualMonths').alignment = { vertical: 'middle', horizontal: 'center' };
                 
                 row.eachCell(cell => {
                     cell.fill = {
@@ -421,7 +482,8 @@ app.post('/api/export', async (req, res) => {
                 
                 row.getCell('stt').alignment = { vertical: 'middle', horizontal: 'center' };
                 row.getCell('time').alignment = { vertical: 'middle', horizontal: 'center' };
-                row.getCell('months').alignment = { vertical: 'middle', horizontal: 'center' };
+                row.getCell('originalMonths').alignment = { vertical: 'middle', horizontal: 'center' };
+                row.getCell('actualMonths').alignment = { vertical: 'middle', horizontal: 'center' };
             }
         });
         
@@ -446,13 +508,14 @@ app.post('/api/export', async (req, res) => {
             project: '',
             content: '',
             position: '',
-            time: 'Tổng cộng thời gian:',
-            months: { formula: `=SUM(F2:F${lastRowIndex - 1})` }
+            time: 'Tổng cộng thời gian thực tính:',
+            originalMonths: '',
+            actualMonths: { formula: `=SUM(G2:G${lastRowIndex - 1})` }
         });
         
         totalRow.font = { name: 'Arial', size: 10, bold: true };
         totalRow.getCell('time').alignment = { vertical: 'middle', horizontal: 'right' };
-        totalRow.getCell('months').alignment = { vertical: 'middle', horizontal: 'center' };
+        totalRow.getCell('actualMonths').alignment = { vertical: 'middle', horizontal: 'center' };
         
         // Định dạng dòng tổng cộng nổi bật hơn
         totalRow.eachCell(cell => {
@@ -518,8 +581,4 @@ app.get('/api/open-file', (req, res) => {
 // Khởi động server
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
-    // Tự động mở trình duyệt trên Windows
-    if (process.platform === 'win32') {
-        exec(`start http://localhost:${PORT}`);
-    }
 });

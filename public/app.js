@@ -286,18 +286,18 @@ async function handleFiles(files) {
     let hasWarning = false;
     let warningMsg = '';
     
-    // Lọc danh sách file Word (.docx) hợp lệ
+    // Lọc danh sách file Word (.docx, .doc) hợp lệ
     const validFiles = Array.from(files).filter(file => {
         const ext = file.name.split('.').pop().toLowerCase();
-        return ext === 'docx';
+        return ext === 'docx' || ext === 'doc';
     });
     
     if (validFiles.length === 0) {
-        showAlert('Không tìm thấy file .docx hợp lệ nào. Vui lòng chọn các file có định dạng .docx.', 'error');
+        showAlert('Không tìm thấy file Word (.docx, .doc) hợp lệ nào. Vui lòng chọn các file có định dạng .docx hoặc .doc.', 'error');
         return;
     }
 
-    showLoading(`Đang phân tích dữ liệu từ ${validFiles.length} file DOCX...`);
+    showLoading(`Đang phân tích dữ liệu từ ${validFiles.length} file Word...`);
     
     try {
         for (let i = 0; i < validFiles.length; i++) {
@@ -608,6 +608,7 @@ function renderTable() {
                     <input type="hidden" class="table-input" data-field="startTime" value="">
                     <input type="hidden" class="table-input" data-field="endTime" value="">
                 </td>
+                <td class="text-center font-bold" style="border-bottom: 2px solid #cbd5e1; color: #64748b;">-</td>
                 <td class="text-center col-months font-bold" style="border-bottom: 2px solid #cbd5e1; color: #1e40af;">${monthsText}</td>
             `;
         } else {
@@ -616,12 +617,12 @@ function renderTable() {
             
             if (item.isOverlapped) {
                 rowStyle = 'background-color: #fef2f2; border-left: 4px solid #ef4444;';
-                monthsBadge = `<span style="color: #ef4444; font-weight: bold; font-size: 0.85em;">${item.originalMonths} th (Thực tính: 0)</span>`;
+                monthsBadge = `<span style="color: #ef4444; font-weight: bold;">0 th</span>`;
             } else if (item.isPartialOverlapped) {
                 rowStyle = 'background-color: #fffbeb; border-left: 4px solid #f59e0b;';
-                monthsBadge = `<span style="color: #b45309; font-weight: bold; font-size: 0.85em;">${item.originalMonths} th (Thực tính: ${item.actualMonths})</span>`;
+                monthsBadge = `<span style="color: #b45309; font-weight: bold;">${item.actualMonths} th</span>`;
             } else {
-                monthsBadge = `<span style="color: #1d4ed8; font-weight: bold;">${item.originalMonths} th</span>`;
+                monthsBadge = `<span style="color: #1d4ed8; font-weight: bold;">${item.actualMonths} th</span>`;
             }
 
             row.style.cssText = rowStyle;
@@ -632,6 +633,7 @@ function renderTable() {
                 <td class="col-position"><input type="text" class="table-input" data-field="position" value="${item.position || ''}"></td>
                 <td class="col-time-start"><input type="text" class="table-input" data-field="startTime" value="${item.startTime || ''}" placeholder="MM/YYYY" style="text-align: center;"></td>
                 <td class="col-time-end"><input type="text" class="table-input" data-field="endTime" value="${item.endTime || ''}" placeholder="MM/YYYY" style="text-align: center;"></td>
+                <td class="text-center" style="font-weight: 500; color: #475569;">${item.originalMonths || 0} th</td>
                 <td class="text-center col-months">${monthsBadge}</td>
             `;
         }
